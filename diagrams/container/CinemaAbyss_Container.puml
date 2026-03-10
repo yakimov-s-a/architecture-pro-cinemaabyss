@@ -1,0 +1,51 @@
+@startuml
+!include <C4/C4_Container>
+
+title Cinema Abyss Container Diagram
+
+Person(spaUser, "SPA User", "An SPA user of the Cinema Abyss system")
+Person(mobileUser, "Mobile User", "A mobile user of the Cinema Abyss system")
+Person(tvUser, "TV User", "A TV user of the Cinema Abyss system")
+System_Boundary(cinemaAbyss, "Cinema Abyss", "", "", "System managing movies, users, and subscriptions") {
+    Container(apiGateway, "API Gateway", "Kong", "Serves as a single access point for the SPA")
+    Container(bff, "SPA / Mobile / TV BFF", "Node.js", "BFF for specific clients\n(for clarity, shown in one block)")
+
+    Container(iam, "IAM", "Keycloak, PostgreSQL", "Manages user identity and access\n(with own database)")
+    Container(users, "Users", "Node.js, MongoDB", "Manages users\n(with own database)")
+    Container(movies, "Movies", "Go, PostgreSQL", "Manages movies metadata, ratings, and genres\n(with own database)")
+    Container(subscriptions, "Subscriptions", "Node.js, MongoDB", "Manages subscriptions and plans\n(with own database)")
+    Container(payments, "Payments", "Node.js, PostgreSQL", "Manages payments\n(with own database)")
+    Container(recommendations, "Recommendations", "Node.js", "Serves as an adapter between Kafka and RabbitMQ")
+
+    ContainerQueue(messageQueue, "Message Queue", "Apache Kafka", "Streams system events")
+    ContainerQueue(recommendationQueue, "Recommendation Queue", "RabbitMQ", "Dispatches recommendation data")
+}
+System_Ext(streamingService, "Streaming Service", "External service for streaming movies")
+System_Ext(fileStorage, "File Storage", "External storage for movie files")
+System_Ext(paymentSystem, "Payment System", "External system for processing payments")
+System_Ext(recommendationSystem, "Recommendation System", "External system for recommendations")
+
+Rel(apiGateway, iam, "Validates tokens")
+Rel(apiGateway, bff, "Makes API calls to specific BFF")
+
+Rel(bff, iam, "Authenticates users")
+Rel(bff, users, "Manages users")
+Rel(bff, movies, "Manages movies")
+Rel(bff, subscriptions, "Manages subscriptions")
+Rel(bff, payments, "Processes payments")
+
+Rel(payments, messageQueue, "Produces payment processing events")
+Rel(subscriptions, messageQueue, "Consumes payment processing events")
+Rel(movies, messageQueue, "Produces movie rating changing events, consumes recommendation events")
+Rel_U(recommendations, messageQueue, "Consumes movie rating changing events, produces recommendation events")
+
+Rel(recommendations, recommendationQueue, "Sends movies ratings and receives recommendations")
+Rel(recommendationSystem, recommendationQueue, "Receives movies ratings and sends recommendations")
+
+Rel(spaUser, apiGateway, "Uses the system")
+Rel(mobileUser, apiGateway, "Uses the system")
+Rel(tvUser, apiGateway, "Uses the system")
+Rel_U(movies, streamingService, "Redirects to a partner streaming service")
+Rel_L(movies, fileStorage, "Reads/writes movies file data")
+Rel(payments, paymentSystem, "Processes payments")
+@enduml
